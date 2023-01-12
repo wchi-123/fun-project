@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ubuntu/workspace/os/list.h
+
+/home/ubuntu/workspace/os/main.c
+read_data.c
+/home/ubuntu/workspace/os/read_data.c
+
+/home/ubuntu/workspace/os/read_data.c
+stdio.h
+-
+stdlib.h
+-
+list.h
+/home/ubuntu/workspace/os/list.h
+

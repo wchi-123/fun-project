@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/home/ubuntu/workspace/os_bak/main.c" "/home/ubuntu/workspace/os_bak/build/CMakeFiles/main.dir/main.c.o"
+  "/home/ubuntu/workspace/os/main.c" "/home/ubuntu/workspace/os/build/CMakeFiles/main.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 

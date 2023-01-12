@@ -8,12 +8,18 @@
 #define WAIT "Wait"     // 阻塞状态
 #define FINISH "Finish" // 完成状态
 #define NONE "None"   // 就绪状态
-
+#define MAX 10
 #define JOB_NAME_SIZE_MAX (20) // 进程名称长度a
 #define JOB_PROCESS_STA_LEN (10) // 进程长度状态
 #define JOBNUMBER (5) // 设置进程测试数为5
 
 static int currentTime = 0; // 当前时间，模拟时钟
+
+int n_sche; // 调度方式
+int n_page; // 页面置换方式
+int time_slice; // 时间片大小
+int frame_size; // 页面大小
+int frame_count; // 页面个数
 
 /* 记录任务执行动作 */
 struct task_action{
@@ -22,6 +28,11 @@ struct task_action{
     int data;// 跳转地址/IO等待时间
     struct list_head actions; // 所有 task_action 结构体组成的链表
 };
+
+typedef struct Page {
+    int num; //固定每一行
+    int mark; //时间戳
+}Page;
 
 struct task_struct {
 	char jobName[JOB_NAME_SIZE_MAX]; // 作业名
@@ -32,11 +43,16 @@ struct task_struct {
     struct task_action *action; // 任务动作
     char processStatus[JOB_PROCESS_STA_LEN]; // 进程状态
     int runTime; // 当前运行时间
-    int waitTime; // IO阻塞时间
+    int time_slice; // 时间片
+    int waitTime; // IO阻塞
     int startTime; // 开始时间
+    int serverTime; //剩余服务时间
     int endTime;   // 完成时间
     int turnoverTime; // 周转时间
     float useWeightTurnoverTime; // 带权周转时间
+    Page frame[MAX]; //页帧（物理块可以放的页数）
+    int page_count; //当前使用页面个数 
+    int sub; // 记录页面置换情况
     struct list_head tasks; // 所有 task_struct 结构体组成的链表
 };
 
@@ -68,6 +84,7 @@ void readProcess(struct task_struct *task)
         tmp->startTime = -1;
         tmp->runTime = 0;
         tmp->endTime = 0;
+        tmp->time_slice = 0;
         tmp->turnoverTime = 0;
         tmp->useWeightTurnoverTime = 0.0;
         strcpy(tmp->processStatus, NONE);
@@ -144,18 +161,22 @@ void readAction(struct task_struct *task){
         while(scanf("%d %s %d",&time, name_act, &data) !=EOF){
             action_temp = (struct task_action *)malloc(sizeof(struct task_action));
             action_temp->time = time;
-            action_temp->data = data;
-            if(!strcmp(name_act, "跳转"))
+            
+            if(!strcmp(name_act, "跳转")){
                 action_temp->aid = 1;
-            else if(!strcmp(name_act, "读写磁盘"))
+                action_temp->data = data / frame_size + 1;
+            }
+            else if(!strcmp(name_act, "读写磁盘")){
                 action_temp->aid = 2;
+                action_temp->data = data;
+            }
             else if(!strcmp(name_act, "结束")){
                 action_temp->aid = 3;
                 list_add_tail(&action_temp->actions, &action->actions);
+                task_temp->serverTime = time; //记录该进程的服务时间
                 break;
             }
             list_add_tail(&action_temp->actions, &action->actions);
-
             data = 0;
         }
         task_temp->action = action; // 将动作链表存入相应任务结构体中
@@ -171,6 +192,7 @@ float weightTurnoverTimeCount(struct task_struct **Mtask)
         sum += Mtask[i]->useWeightTurnoverTime;
     return sum / JOBNUMBER;
 }
+
 // 计算平均周转时间
 float turnOverTimeCount(struct task_struct **Mtask)
 {
@@ -181,48 +203,51 @@ float turnOverTimeCount(struct task_struct **Mtask)
     return sum / JOBNUMBER;
 }
 
-void printJob(struct task_struct **Mtask)
+void printJob2(struct task_struct **Mtask)
 {
     int i;
-    printf("当前时间为%d\n", currentTime);
-    printf("作业号\t到达时间\t已运行时间\t开始时间\t完成时间\t周转时间\t带权周转时间\t阻塞时间\t进程状态\n");
+    printf("作业号\t到达时间\t已运行时间\t开始时间\t完成时间\t周转时间\t带权周转时间\n");
     for (i = 0; i < JOBNUMBER; i++)
     {
         // 如果进程为finish状态，这样输出
         if (strcmp(Mtask[i]->processStatus, FINISH) == 0)
         {
-            printf("%s\t%d\t\t%d\t\t%d\t\t%d\t\t%d\t\t%.2f\t\tnone\t\t%s\n",
+            printf("%s\t%d\t\t%d\t\t%d\t\t%d\t\t%d\t\t%.2f\n",
                    Mtask[i]->jobName, Mtask[i]->arriveTime, Mtask[i]->runTime,
                    Mtask[i]->startTime, Mtask[i]->endTime, Mtask[i]->turnoverTime,
-                   Mtask[i]->useWeightTurnoverTime,Mtask[i]->processStatus);
-        }
-        else if (strcmp(Mtask[i]->processStatus, READY) == 0)
+                   Mtask[i]->useWeightTurnoverTime);
+        } 
+    }
+
+    /* 将输出重定向到文件 */
+    freopen("../result.txt", "w", stdout);
+    printf("作业号\t到达时间\t已运行时间\t开始时间\t完成时间\t周转时间\t带权周转时间\n");
+    for (i = 0; i < JOBNUMBER; i++)
+    {
+        // 如果进程为finish状态，这样输出
+        if (strcmp(Mtask[i]->processStatus, FINISH) == 0)
         {
-            if(Mtask[i]->startTime == -1)
-                printf("%s\t%d\t\t%d\t\t未运行\t\tnone\t\tnone\t\tnone\t\tnone\t\t%s\n",
-                    Mtask[i]->jobName, Mtask[i]->arriveTime,
-                    Mtask[i]->runTime, Mtask[i]->processStatus);
-            // 已经启动但是被抢占
-            else
-                printf("%s\t%d\t\t%d\t\t%d\t\tnone\t\tnone\t\tnone\t\tnone\t\t%s\n",
-                    Mtask[i]->jobName, Mtask[i]->arriveTime,
-                    Mtask[i]->runTime, Mtask[i]->startTime,
-                    Mtask[i]->processStatus);
-        }
-        else if (strcmp(Mtask[i]->processStatus, WAIT) == 0)
-        {
-            printf("%s\t%d\t\t%d\t\t%d\t\tnone\t\tnone\t\tnone\t\t%d\t\t%s\n",
-                   Mtask[i]->jobName, Mtask[i]->arriveTime,
-                   Mtask[i]->runTime, Mtask[i]->startTime,
-                   Mtask[i]->waitTime,Mtask[i]->processStatus);
-        }
-        else if (strcmp(Mtask[i]->processStatus, RUN) == 0)
-        {
-            printf("%s\t%d\t\t%d\t\t%d\t\tnone\t\tnone\t\tnone\t\tnone\t\t%s\n",
-                Mtask[i]->jobName, Mtask[i]->arriveTime,
-                Mtask[i]->runTime, Mtask[i]->startTime,
-                Mtask[i]->processStatus);
+            printf("%s\t%d\t\t\t%d\t\t\t%d\t\t%d\t\t\t%d\t\t\t%.2f\n",
+                   Mtask[i]->jobName, Mtask[i]->arriveTime, Mtask[i]->runTime,
+                   Mtask[i]->startTime, Mtask[i]->endTime, Mtask[i]->turnoverTime,
+                   Mtask[i]->useWeightTurnoverTime);
         }
     }
-    
+    fclose(stdout);  //关闭文件 
+}
+
+void printJob(struct task_struct **Mtask,struct task_struct *task){
+    int i,k; 
+    printf("%d\t%c\t\t%d\t\t%d\t\t%d\t\t",currentTime,task->jobName[0],task->startTime,task->runTime,task->serverTime);
+    for (i = 0; i < JOBNUMBER; i++)
+    {
+        printf("%s\t\t",Mtask[i]->processStatus);
+    }
+    for (i = 0; i < JOBNUMBER; i++)
+    {
+        for (k = 0; k < frame_count; k++)
+                printf("%d  ", (Mtask[i]->frame[k].num)); //打印最新的物理块中的页
+        printf("\t");
+    }
+    printf("\n");
 }

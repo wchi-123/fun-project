@@ -6,5 +6,5 @@ C_FLAGS =   -Wall -O0 -g
 
 C_DEFINES = 
 
-C_INCLUDES = -I/usr/local/include -I/home/ubuntu/workspace/os_bak/deps 
+C_INCLUDES = -I/usr/local/include -I/home/ubuntu/workspace/os/deps 
 

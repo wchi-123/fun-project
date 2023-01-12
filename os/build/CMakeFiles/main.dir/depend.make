@@ -3,5 +3,5 @@
 
 CMakeFiles/main.dir/main.c.o: ../list.h
 CMakeFiles/main.dir/main.c.o: ../main.c
-CMakeFiles/main.dir/main.c.o: ../my_tools.c
+CMakeFiles/main.dir/main.c.o: ../read_data.c
 

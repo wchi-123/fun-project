@@ -1,7 +1,6 @@
 /*
  * @file list.h
- * @author Akagi201
- * @date 2015/03/18
+
  *
  * port from linux kernel list.h: https://github.com/torvalds/linux/raw/master/include/linux/list.h
  *
